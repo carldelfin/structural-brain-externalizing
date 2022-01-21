@@ -1,0 +1,321 @@
+---
+title: "Structural brain correlates of the externalizing spectrum in young adults"
+output: html_document
+---
+
+# Libraries and setup
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(here)
+library(readr)
+library(brms)
+library(tidyverse)
+library(tidybayes)
+library(psych)
+library(GPArotation)
+library(gt)
+library(kableExtra)
+library(flextable)
+library(officer)
+library(ggseg)
+library(patchwork)
+
+overwrite <- FALSE
+overwrite_brms <- FALSE
+overwrite_latex_table <- FALSE
+
+seed <- 2020
+cores <- 8
+chains <- 8
+iter <- 4000
+warmup <- 2000
+refresh <- 0
+```
+
+# Specify brms models
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+# correlation
+if (!file.exists(here("analysis/scripts/brms/brms_robust_correlation.rds")) || overwrite_brms == TRUE) {
+  set.seed(seed)
+  
+  temp_data <- 
+    data.frame(x = rnorm(50),
+               y = rnorm(50))
+  
+  brms_robust_correlation <- 
+    brm(mvbind(x, y) ~ 0,
+        data = temp_data,
+        family = student,
+        prior = c(prior(gamma(2, 0.1), class = nu),
+                  prior(normal(0, 10), class = sigma, resp = x),
+                  prior(normal(0, 10), class = sigma, resp = y),
+                  prior(lkj(2), class = rescor)),
+        iter = iter,
+        cores = cores,
+        chains = chains,
+        warmup = warmup,
+        seed = seed,
+        refresh = refresh)
+
+  saveRDS(brms_robust_correlation, here("analysis/scripts/brms/brms_robust_correlation.rds"))
+}
+
+# linear regression
+
+if (!file.exists(here("analysis/scripts/brms/brms_robust_linear_regression.rds")) || overwrite_brms == TRUE) {
+  set.seed(seed)
+  
+  temp_data <- 
+    data.frame(y = rnorm(50),
+               x1 = rnorm(50),
+               x2 = rnorm(50),
+               x3 = rnorm(50))
+  
+  brms_robust_linear_regression <-
+    brm(y ~ 0 + x1 + x2 + x3,
+        data = temp_data,
+        family = student,
+        prior = c(prior(normal(0, 10), class = b),
+                  prior(gamma(2, 0.1), class = nu),
+                  prior(cauchy(0, 1),  class = sigma)),
+        iter = iter,
+        cores = cores,
+        chains = chains,
+        warmup = warmup,
+        seed = seed,
+        refresh = refresh)
+  
+  saveRDS(brms_robust_linear_regression, here("analysis/scripts/brms/brms_robust_linear_regression.rds"))
+}
+```
+
+# Read data
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+source(here("analysis/scripts/r/01_helper_functions.R"))
+source(here("analysis/scripts/r/02_esi_data_transform.R"))
+source(here("analysis/scripts/r/03_read_and_process_data.R"))
+```
+
+# Reliability analysis
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+source(here("analysis/scripts/r/04_reliability_analysis.R"))
+readRDS(here("analysis/data/reliability_data.rds")) %>%
+  gt()
+```
+
+# Descriptives
+
+## Gender distribution
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+data %>%
+  group_by(gender) %>%
+  na.omit() %>%
+  summarise(n = n()) %>%
+  mutate(perc = round(n / sum(n) * 100, 1)) %>%
+  gt()
+```
+
+## Age
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+data %>%
+  na.omit() %>%
+  select(age) %>%
+  describe() %>%
+  select(mean, sd, median, min, max) %>%
+  mutate_if(is.numeric, round, 2) %>%
+  gt()
+```
+
+## Years of education total
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+data %>%
+  na.omit() %>%
+  select(years_of_education_total) %>%
+  describe() %>%
+  select(mean, sd, median, min, max) %>%
+  mutate_if(is.numeric, round, 2) %>%
+  gt()
+```
+
+## Any previous or current psychiatric disorders
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+data %>%
+  group_by(psychiatric_disorders) %>%
+  na.omit() %>%
+  summarise(n = n()) %>%
+  mutate(perc = round(n / sum(n) * 100, 1)) %>%
+  gt()
+```
+
+## Which previous or current psychiatric disorders
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+data %>%
+  group_by(psychiatric_disorders_2) %>%
+  na.omit() %>%
+  summarise(n = n()) %>%
+  mutate(perc = round(n / sum(n) * 100, 1)) %>%
+  gt()
+```
+
+## Any previous or current neurological disorders
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+data %>%
+  group_by(neurological_disorders) %>%
+  na.omit() %>%
+  summarise(n = n()) %>%
+  mutate(perc = round(n / sum(n) * 100, 1)) %>%
+  gt()
+```
+
+## Any current medication
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+data %>%
+  group_by(current_medication) %>%
+  na.omit() %>%
+  summarise(n = n()) %>%
+  mutate(perc = round(n / sum(n) * 100, 1)) %>%
+  gt()
+```
+
+## Which current medication
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+data %>%
+  group_by(current_medication_2) %>%
+  na.omit() %>%
+  summarise(n = n()) %>%
+  mutate(perc = round(n / sum(n) * 100, 1)) %>%
+  gt()
+```
+
+# Table 1
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readRDS(here("analysis/data/data.rds"))
+table_1 <- 
+  data %>%
+  na.omit() %>%
+  # rename
+  mutate("ESI-BF_DIS" = general_disinhibition,
+         "ESI-BF_AGG" = callous_aggression,
+         "ESI-BF_SUB" = substance_abuse,
+         "NoGo accuracy" = nogo_accuracy,
+         "Left caudal ACC" = lcaudalanteriorcingulate,
+         "Right caudal ACC" = rcaudalanteriorcingulate,
+         "Left rostral ACC" = lrostralanteriorcingulate,
+         "Right rostral ACC" = rrostralanteriorcingulate,
+         "Left lateral OFC" = llateralorbitofrontal,
+         "Right lateral OFC" = rlateralorbitofrontal,
+         "Left medial OFC" = lmedialorbitofrontal,
+         "Right medial OFC" = rmedialorbitofrontal,
+         "Left DLPFC" = lrostralmiddlefrontal,
+         "Right DLPFC" = rrostralmiddlefrontal) %>%
+  # order
+  select("ESI-BF_DIS",
+         "ESI-BF_AGG",
+         "ESI-BF_SUB",
+         # go/nogo
+         "NoGo accuracy",
+         # left hemisphere
+         "Left caudal ACC",
+         "Left rostral ACC",
+         "Left lateral OFC",
+         "Left medial OFC",
+         "Left DLPFC",
+         # right hemisphere
+         "Right caudal ACC",
+         "Right rostral ACC",
+         "Right lateral OFC",
+         "Right medial OFC",
+         "Right DLPFC") %>%
+  describe() %>%
+  add_rownames(., var = "rowname") %>%
+  mutate_if(is.numeric, round, 2) %>%
+  mutate(mean_sd = paste0(mean, " ± ", sd),
+         range = paste0(min, " - ", max)) %>%
+  select(rowname, mean_sd, range) %>%
+  kable("latex",
+        booktabs = TRUE,
+        col.names = c("Variable",
+                      "Mean ± SD",
+                      "Range"),
+        align = c('l','c','c'))
+
+if (!file.exists(here("manuscript/tables/table_1.tex")) || overwrite_latex_table == TRUE) {
+  write(table_1, file = here("manuscript/tables/table_1.tex"))
+}
+```
+
+# Correlations
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+source(here("analysis/scripts/r/05_robust_correlations.R"))
+correlation_results %>% 
+  mutate_if(is.numeric, round, 2) %>%
+  gt()
+```
+
+# Linear regressions
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+source(here("analysis/scripts/r/06_robust_linear_regression.R"))
+```
+
+## Table 2
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+source(here("analysis/scripts/r/07_regression_table.R"))
+
+table_2 <-
+  kable(tmp,
+        "latex",
+        booktabs = TRUE,
+        align = c('l','c','c','c','c','c','c', 'c')) %>%
+  kable_styling() %>% 
+  add_header_above(c(" " = 1, "ESI-BF_DIS" = 2, "ESI-BF_AGG" = 2, "ESI-BF_SUB" = 2, "NoGo accuracy" = 2)) %>%
+  pack_rows("Left", 1, 5) %>%
+  pack_rows("Right", 6, 10)
+```
+
+# Figures
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+source(here("analysis/scripts/r/08_figures.R"))
+```
+
+# Session info
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+devtools::session_info()
+```
+
+
+
+
+
+
+
+
+
+
+
+
